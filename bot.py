@@ -1,10 +1,9 @@
-
 import telebot
 from dotenv import load_dotenv
 from telebot import types
 import os
 
-print(load_dotenv())
+load_dotenv()
 botTimeWeb = telebot.TeleBot(os.getenv('TOKEN'))
 
 @botTimeWeb.message_handler(commands=['start'])
@@ -20,22 +19,45 @@ def start_bot(message):
 def response(call):
     if call.message:
         if call.data == "yes":
-            sticker_files = []  # Список путей к скачанным стикерам
-            user_photos = botTimeWeb.get_user_profile_photos(call.from_user.id)
-            for photos_size in user_photos.photos:
-                for photo in photos_size:
-                    if photo.content_type == 'sticker':
-                        file_id = photo.file_id
-                        file_path = botTimeWeb.download_sticker_file(file_id)
-                        sticker_files.append(file_path)
-
-            second_mess = f"Скачано {len(sticker_files)} стикеров."
-            botTimeWeb.send_message(call.message.chat.id, second_mess)
-            botTimeWeb.answer_callback_query(call.id)
+            botTimeWeb.send_message(call.message.chat.id, "Пожалуйста, пришлите мне название набора стикеров или ID стикера, который вы хотите получить.")
+            botTimeWeb.register_next_step_handler_by_chat_id(call.message.chat.id, process_sticker_request)
         elif call.data == "no":
             second_mess = "Нажали на кнопку no"
             botTimeWeb.send_message(call.message.chat.id, second_mess)
             botTimeWeb.answer_callback_query(call.id)
+
+def process_sticker_request(message):
+    try:
+        # Проверяем, является ли введенное значение названием набора стикеров или ID стикера
+        sticker_set_name_or_id = message.text.strip()
+        
+        # Отправляем стикер или набор стикеров
+        botTimeWeb.send_sticker(chat_id=message.chat.id, sticker=sticker_set_name_or_id)
+        
+        # Сообщаем пользователю, что стикеры были отправлены
+        botTimeWeb.send_message(message.chat.id, "Стикеры получены!")
+    except Exception as e:
+        botTimeWeb.send_message(message.chat.id, f"Произошла ошибка при получении стикеров: {e}")
+
+@botTimeWeb.message_handler(commands=['stickers'])
+def stickers_command(message):
+    # Отправляем сообщение с двумя кнопками: "Да" и "Нет"
+    markup = types.InlineKeyboardMarkup()
+    yes_button = types.InlineKeyboardButton(text='Да', callback_data='yes_stickers')
+    no_button = types.InlineKeyboardButton(text='Нет', callback_data='no_stickers')
+    markup.add(yes_button, no_button)
+    
+    botTimeWeb.send_message(chat_id=message.chat.id,
+                            text="Хотите получить набор стикеров?",
+                            reply_markup=markup)
+
+@botTimeWeb.callback_query_handler(func=lambda call: True)
+def handle_stickers_callback(call):
+    if call.data == 'yes_stickers':
+        botTimeWeb.send_message(call.message.chat.id, "Пожалуйста, пришлите мне название набора стикеров или ID стикера, который вы хотите получить.")
+        botTimeWeb.register_next_step_handler_by_chat_id(call.message.chat.id, process_sticker_request)
+    elif call.data == 'no_stickers':
+        botTimeWeb.answer_callback_query(callback_query_id=call.id, show_alert=False, text="Хорошо, ничего не отправляю.")
 
 botTimeWeb.infinity_polling()
 
