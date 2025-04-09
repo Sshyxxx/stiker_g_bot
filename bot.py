@@ -2,9 +2,42 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 import os
+import requests
+
+# Создаем функцию для загрузки файла по ссылке
+def download_file(url, file_path):
+    with open(file_path, 'wb') as f:
+        response = requests.get(url)
+        f.write(response.content)
 
 load_dotenv()
 botTimeWeb = telebot.TeleBot(os.getenv('TOKEN'))
+
+# Функция для обработки команды /allstickers
+@botTimeWeb.message_handler(commands=['allstickers'])
+def get_all_stickers(message):
+    chat_id = message.chat.id
+    user_id = str(chat_id)
+    
+    # Получение всех стикеров пользователя
+    profile_photos = botTimeWeb.get_user_profile_photos(user_id)
+    
+    # Создание директории для хранения стикеров данного пользователя
+    folder_path = f'stickers/{user_id}'
+    os.makedirs(folder_path, exist_ok=True)
+    
+    for photo in profile_photos.photos:
+        # Для каждого размера стикера скачиваем файл
+        for file_id in photo:
+            file_info = botTimeWeb.get_file(file_id.file_id)
+            
+            # Скачивание файла
+            file_url = f'https://api.telegram.org/file/bot{os.getenv("TOKEN")}/{file_info.file_path}'
+            file_path = f'{folder_path}/{file_id.file_unique_id}.webp'
+            download_file(file_url, file_path)
+    
+    botTimeWeb.send_message(chat_id, f'Все стикеры пользователя сохранены в папке {folder_path}')
+
 
 @botTimeWeb.message_handler(commands=['start'])
 def start_bot(message):
