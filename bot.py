@@ -13,30 +13,47 @@ def download_file(url, file_path):
 load_dotenv()
 botTimeWeb = telebot.TeleBot(os.getenv('TOKEN'))
 
+botTimeWeb.remove_webhook()
 # Функция для обработки команды /allstickers
 @botTimeWeb.message_handler(commands=['allstickers'])
 def get_all_stickers(message):
     chat_id = message.chat.id
     user_id = str(chat_id)
     
-    # Получение всех стикеров пользователя
-    profile_photos = botTimeWeb.get_user_profile_photos(user_id)
+    # Определяем количество сообщений для анализа
+    limit = 100  # Количество сообщений, которые будем проверять за раз
     
-    # Создание директории для хранения стикеров данного пользователя
+    # Создаем директорию для хранения стикеров данного пользователя
     folder_path = f'stickers/{user_id}'
     os.makedirs(folder_path, exist_ok=True)
     
-    for photo in profile_photos.photos:
-        # Для каждого размера стикера скачиваем файл
-        for file_id in photo:
-            file_info = botTimeWeb.get_file(file_id.file_id)
-            
-            # Скачивание файла
-            file_url = f'https://api.telegram.org/file/bot{os.getenv("TOKEN")}/{file_info.file_path}'
-            file_path = f'{folder_path}/{file_id.file_unique_id}.webp'
-            download_file(file_url, file_path)
+    offset = 0
+    found_stickers = set()  # Множество уникальных стикеров
     
-    botTimeWeb.send_message(chat_id, f'Все стикеры пользователя сохранены в папке {folder_path}')
+    while True:
+        messages = botTimeWeb.get_messages(chat_id, limit=100)
+        
+        if not messages:
+            break
+        
+        for msg in messages:
+            if msg.sticker and msg.sticker.file_unique_id not in found_stickers:
+                file_id = msg.sticker.file_id
+                
+                # Получаем информацию о файле
+                file_info = botTimeWeb.get_file(file_id)
+                
+                # Скачивание файла
+                file_url = f'https://api.telegram.org/file/bot{os.getenv("TOKEN")}/{file_info.file_path}'
+                file_path = f'{folder_path}/{msg.sticker.file_unique_id}.webp'
+                download_file(file_url, file_path)
+                
+                print(f"Сохранено: {file_path}")
+                found_stickers.add(msg.sticker.file_unique_id)
+        
+        offset += len(messages)
+    
+    botTimeWeb.send_message(chat_id, f'Собрано и сохранено {len(found_stickers)} уникальных стикеров в папку {folder_path}')
 
 
 @botTimeWeb.message_handler(commands=['start'])
