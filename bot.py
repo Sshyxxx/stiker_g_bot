@@ -31,57 +31,6 @@ TOKEN = "7003815498:AAGceEOYCe8NsKqED66b3sTudGIkb-voigw"
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
 
-# Кнопки меню
-menu_buttons = [
-    KeyboardButton(text='/info'),
-    KeyboardButton(text='/settings'),
-    KeyboardButton(text='/help'),
-    KeyboardButton(text='/close_menu')
-]
-
-# Формируем двумерный массив (каждый внутренний список — это ряд кнопок)
-rows = [
-    [menu_buttons[0]],           # Первый ряд: одна кнопка '/info'
-    [menu_buttons[1]],           # Второй ряд: одна кнопка '/settings'
-    [menu_buttons[2], menu_buttons[3]]  # Третий ряд: две кнопки ('/help', '/close_menu')
-]
-
-# Формируем саму клавиатуру
-reply_markup = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
-
-# Обработчик команды /start и /menu
-@dp.message(Command("start"), Command("menu"))
-async def show_main_menu(message: types.Message):
-    await message.answer("Привет! Выберите одну из доступных команд:", reply_markup=reply_markup)
-
-# Информация о боте
-@dp.message(Command('info'))
-async def info_command(message: types.Message):
-    await message.answer("📌 Информация о боте:\n"
-                         "- Бот предназначен для помощи пользователям.\n"
-                         "- Здесь вы найдете полезные команды и инструкции.", reply_markup=reply_markup)
-
-# Настройки аккаунта
-@dp.message(Command('settings'))
-async def settings_command(message: types.Message):
-    await message.answer("⚙️ Настройки аккаунта:\n"
-                         "- Текущие настройки пока отсутствуют.\n"
-                         "- Будут добавлены позже.", reply_markup=reply_markup)
-
-# # Справочная информация
-# @dp.message_handler(commands=['help'])
-# async def help_command(message: types.Message):
-#     await message.answer("❓ Помогаю разобраться с командами:\n"
-#                          "/info - информация о боте\n"
-#                          "/settings - настройки аккаунта\n"
-#                          "/help - справка по командам\n"
-#                          "/close_menu - закрыть меню", reply_markup=reply_markup)
-
-# # Команда закрытия меню
-# @dp.message_handler(commands=['close_menu'])
-# async def close_menu(message: types.Message):
-#     await message.answer("Меню закрыто. Используйте /menu для открытия.", reply_markup=None)
-
 # Dictionary to track users who are in indexing mode
 indexing_users = {}
 
