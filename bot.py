@@ -1,4 +1,6 @@
 #import telebot
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import PointStruct
 #from dotenv import load_dotenv
 #from telebot import types
 import os
@@ -28,6 +30,10 @@ import json
 # Bot token can be obtained via https://t.me/BotFather
 TOKEN = "7003815498:AAGceEOYCe8NsKqED66b3sTudGIkb-voigw"
 
+QDRANT_URL = "https://localhost:6333"
+client = QdrantClient(url=QDRANT_URL)
+COLLECTION_NAME = "stickers_collection"
+
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
 
@@ -47,7 +53,6 @@ async def command_start_handler(message: Message) -> None:
         f"Use /random_sticker to get a random sticker from your collection.\n\n"
     )
 
-
 @dp.message(Command("index"))
 async def start_indexing(message: Message) -> None:
     """
@@ -59,6 +64,38 @@ async def start_indexing(message: Message) -> None:
     await message.answer(
         "Indexing mode started. Please send me stickers to index. Type /stop_index when you're done."
     )
+
+@dp.message(Command("add_to_qdrant"))
+async def add_to_qdrant(message: Message) -> None:
+    """
+    Add current sticker data to Qdrant database
+    """
+    user_id = message.from_user.id
+
+    # Check if there was a sticker in the message
+    if not message.sticker:
+        await message.answer("Please send a sticker along with the command!")
+        return
+
+    sticker = message.sticker
+    vector = [3, 4, 5, 2, 4, 2, 2]  # Replace with actual feature extraction logic
+    payload = {
+        'text': f"Detected text for sticker {sticker.file_id}",
+        'sticker_id': sticker.file_id,
+        'file_id': sticker.file_unique_id
+    }
+
+    point_id = str(sticker.file_id)  # Unique identifier for this point
+
+    try:
+        client.upsert(collection_name=COLLECTION_NAME, points=[
+            PointStruct(id=point_id, vector=vector, payload=payload)
+        ])
+        await message.answer("Sticker added successfully to Qdrant!")
+    except Exception as e:
+        logging.error(f"Error adding sticker to Qdrant: {e}")
+        await message.answer("Failed to add sticker to Qdrant.")
+
 
 
 async def download_sticker(bot, sticker, save_path, metadata_path):
