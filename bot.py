@@ -4,7 +4,7 @@ from qdrant_client.http.models import PointStruct
 #from dotenv import load_dotenv
 #from telebot import types
 import os
-#import requests
+import requests
 import asyncio
 import logging
 import sys
@@ -30,7 +30,7 @@ from requests import session
 #        f.write(response.content)
 
 # Bot token can be obtained via https://t.me/BotFather
-TOKEN = "7003815498:AAGceEOYCe8NsKqED66b3sTudGIkb-voigw"
+TOKEN = "7367681660:AAHOrznEV7FDi5xUlNshErpr8C4wYV1cI-Y"
 
 QDRANT_URL = "https://localhost:6333"
 client = QdrantClient(url=QDRANT_URL)
@@ -124,38 +124,55 @@ async def download_sticker_set(bot, set_name, user_folder):
             
             await download_sticker(bot, sticker, save_path, metadata_path)
             # Load the downloaded sticker into memory
-            with open(save_path, 'rb') as f:
-                content = f.read()
+            for i, sticker in enumerate(sticker_set.stickers):
+                # Determine file extension (WebP for regular stickers, TGS for animated)
+                extension = "tgs" if sticker.is_animated else "webp"
 
-            # Send the sticker's image data to your FastAPI server
-            form_data = aiohttp.FormData()
-            form_data.add_field('file', content, filename=f"{file_name}", content_type='application/octet-stream')
-            async with session.post('http://localhost:80/upload-image/', data=form_data) as resp:
-                    response_json = await resp.json()
-                    
-                    # Extract the recognized text and embedding from the response
-                    recognized_text = response_json['recognized_text']
-                    embedding = response_json['embedding']
+                # Use index for filename to avoid file system issues with long file_ids
+                file_name = f"sticker_{i+1}.{extension}"
+                save_path = os.path.join(set_folder, file_name)
+                #print("sticker:", sticker)
+                print("folder:", set_folder)
 
-                    # Prepare data for insertion into Qdrant
-                    point_id = sticker.file_unique_id
-                    payload = {
-                        'text': recognized_text,
-                        'sticker_id': sticker.file_id,
-                        'file_id': sticker.file_unique_id
-                    }
+                # Save metadata file alongside sticker
+                metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
+                
+                # Download sticker and store it locally
+                await download_sticker(bot, sticker, save_path, metadata_path)
 
-                    # Insert data into Qdrant
-                    try:
-                        client.upsert(
-                            collection_name=COLLECTION_NAME,
-                            points=[
-                                PointStruct(id=point_id, vector=embedding, payload=payload)
-                            ],
-                            wait=True
-                        )
-                    except Exception as e:
-                        logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
+                # Load the downloaded sticker into memory
+                with open(save_path, 'rb') as f:
+                    content = f.read()
+
+            # Send the sticker's image data to your FastAPI server synchronously
+                files = {'file': (file_name, content)}
+                response = requests.post('http://localhost:80/upload-image/', files=files)
+                response_json = response.json()
+                print(response_json)
+            #     # Extract the recognized text and embedding from the response
+            #     recognized_text = response_json.get('recognized_text', '')
+            #     embedding = response_json.get('embedding', [])
+
+            #     # Prepare data for insertion into Qdrant
+            #     point_id = sticker.file_unique_id
+            #     payload = {
+            #         'text': recognized_text,
+            #         'sticker_id': sticker.file_id,
+            #         'file_id': sticker.file_unique_id
+            #     }
+
+            #     # Insert data into Qdrant
+            #     try:
+            #         client.upsert(
+            #             collection_name=COLLECTION_NAME,
+            #             points=[
+            #                 PointStruct(id=point_id, vector=embedding, payload=payload)
+            #             ],
+            #             wait=True
+            #         )
+            #     except Exception as e:
+            #         logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
+
 
 
         return len(sticker_set.stickers)
