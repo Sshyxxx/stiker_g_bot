@@ -1,5 +1,5 @@
-#import telebot
-from qdrant_client import QdrantClient
+import uuid
+from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import PointStruct
 #from dotenv import load_dotenv
 #from telebot import types
@@ -32,9 +32,16 @@ from requests import session
 # Bot token can be obtained via https://t.me/BotFather
 TOKEN = "7367681660:AAHOrznEV7FDi5xUlNshErpr8C4wYV1cI-Y"
 
-QDRANT_URL = "https://localhost:6333"
+QDRANT_URL = "http://localhost:6333"
 client = QdrantClient(url=QDRANT_URL)
 COLLECTION_NAME = "stickers_collection"
+
+if not client.collection_exists(COLLECTION_NAME):
+    # Create a new collection with the specified name
+    client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
+    )
 
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
@@ -146,32 +153,36 @@ async def download_sticker_set(bot, set_name, user_folder):
 
             # Send the sticker's image data to your FastAPI server synchronously
                 files = {'file': (file_name, content)}
-                response = requests.post('http://localhost:80/upload-image/', files=files)
+                response = requests.post('http://localhost:8000/upload-image/', files=files)
                 response_json = response.json()
-                print(response_json)
-            #     # Extract the recognized text and embedding from the response
-            #     recognized_text = response_json.get('recognized_text', '')
-            #     embedding = response_json.get('embedding', [])
+                print(response_json) 
+                
+                # ПРАВИЛЬНЫЙ ФОРМАТ:
+                # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
+                
+                # Extract the recognized text and embedding from the response
+                recognized_text = response_json.get('recognized_text', '')
+                embedding = response_json.get('embedding', [])
 
-            #     # Prepare data for insertion into Qdrant
-            #     point_id = sticker.file_unique_id
-            #     payload = {
-            #         'text': recognized_text,
-            #         'sticker_id': sticker.file_id,
-            #         'file_id': sticker.file_unique_id
-            #     }
+                # Prepare data for insertion into Qdrant
+                point_id = uuid.uuid4().hex
+                payload = {
+                    'text': recognized_text,
+                    'sticker_id': sticker.file_id,
+                    'file_id': sticker.file_unique_id
+                }
 
-            #     # Insert data into Qdrant
-            #     try:
-            #         client.upsert(
-            #             collection_name=COLLECTION_NAME,
-            #             points=[
-            #                 PointStruct(id=point_id, vector=embedding, payload=payload)
-            #             ],
-            #             wait=True
-            #         )
-            #     except Exception as e:
-            #         logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
+                # Insert data into Qdrant
+                try:
+                    client.upsert(
+                        collection_name=COLLECTION_NAME,
+                        points=[
+                            PointStruct(id=point_id, vector=embedding, payload=payload)
+                        ],
+                        wait=True
+                    )
+                except Exception as e:
+                    logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
 
 
 
