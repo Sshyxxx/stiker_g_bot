@@ -153,9 +153,10 @@ async def download_sticker_set(bot, set_name, user_folder):
 
             # Send the sticker's image data to your FastAPI server synchronously
                 files = {'file': (file_name, content)}
-                response = requests.post('http://localhost:8000/upload-image/', files=files)
+                response = requests.post('http://localhost:80/upload-image/', files=files)
+                print("response", response)
                 response_json = response.json()
-                print(response_json) 
+                print("response_json", response_json) 
                 
                 # ПРАВИЛЬНЫЙ ФОРМАТ:
                 # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
