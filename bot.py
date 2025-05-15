@@ -1,8 +1,9 @@
 import uuid
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import PointStruct
-#from dotenv import load_dotenv
-#from telebot import types
+
+# from dotenv import load_dotenv
+# from telebot import types
 import os
 import requests
 import asyncio
@@ -24,7 +25,7 @@ import json
 from requests import session
 
 # Создаем функцию для загрузки файла по ссылке
-#def download_file(url, file_path):
+# def download_file(url, file_path):
 #    with open(file_path, 'wb') as f:
 #        response = requests.get(url)
 #        f.write(response.content)
@@ -49,10 +50,12 @@ dp = Dispatcher()
 # Dictionary to track users who are in indexing mode
 indexing_users = {}
 
+
 @dp.message(Command("disable_webhook"))
 async def disable_webhook(message: Message) -> None:
     await bot.delete_webhook()
     await message.reply("Webhook успешно отключен! Теперь используем long polling.")
+
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
@@ -61,6 +64,7 @@ async def command_start_handler(message: Message) -> None:
         f"Write me /index to start indexing stickers.\n"
         f"Use /random_sticker to get a random sticker from your collection.\n\n"
     )
+
 
 @dp.message(Command("index"))
 async def start_indexing(message: Message) -> None:
@@ -128,7 +132,7 @@ async def download_sticker_set(bot, set_name, user_folder):
 
             # Save metadata file alongside sticker
             metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
-            
+
             await download_sticker(bot, sticker, save_path, metadata_path)
             # Load the downloaded sticker into memory
             for i, sticker in enumerate(sticker_set.stickers):
@@ -138,39 +142,41 @@ async def download_sticker_set(bot, set_name, user_folder):
                 # Use index for filename to avoid file system issues with long file_ids
                 file_name = f"sticker_{i+1}.{extension}"
                 save_path = os.path.join(set_folder, file_name)
-                #print("sticker:", sticker)
+                # print("sticker:", sticker)
                 print("folder:", set_folder)
 
                 # Save metadata file alongside sticker
                 metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
-                
+
                 # Download sticker and store it locally
                 await download_sticker(bot, sticker, save_path, metadata_path)
 
                 # Load the downloaded sticker into memory
-                with open(save_path, 'rb') as f:
+                with open(save_path, "rb") as f:
                     content = f.read()
 
-            # Send the sticker's image data to your FastAPI server synchronously
-                files = {'file': (file_name, content)}
-                response = requests.post('http://localhost:80/upload-image/', files=files)
+                # Send the sticker's image data to your FastAPI server synchronously
+                files = {"file": (file_name, content)}
+                response = requests.post(
+                    "http://localhost:8000/upload-image/", files=files
+                )
                 print("response", response)
                 response_json = response.json()
-                print("response_json", response_json) 
-                
+                print("response_json", response_json)
+
                 # ПРАВИЛЬНЫЙ ФОРМАТ:
                 # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
-                
+
                 # Extract the recognized text and embedding from the response
-                recognized_text = response_json.get('recognized_text', '')
-                embedding = response_json.get('embedding', [])
+                recognized_text = response_json.get("recognized_text", "")
+                embedding = response_json.get("embedding", [])
 
                 # Prepare data for insertion into Qdrant
                 point_id = uuid.uuid4().hex
                 payload = {
-                    'text': recognized_text,
-                    'sticker_id': sticker.file_id,
-                    'file_id': sticker.file_unique_id
+                    "text": recognized_text,
+                    "sticker_id": sticker.file_id,
+                    "file_id": sticker.file_unique_id,
                 }
 
                 # Insert data into Qdrant
@@ -180,12 +186,12 @@ async def download_sticker_set(bot, set_name, user_folder):
                         points=[
                             PointStruct(id=point_id, vector=embedding, payload=payload)
                         ],
-                        wait=True
+                        wait=True,
                     )
                 except Exception as e:
-                    logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
-
-
+                    logging.error(
+                        f"Error inserting sticker '{point_id}' into Qdrant: {e}"
+                    )
 
         return len(sticker_set.stickers)
     except Exception as e:
@@ -330,7 +336,7 @@ async def handle_sticker(message: Message) -> None:
 async def main() -> None:
     # Initialize Bot instance with default bot properties which will be passed to all API calls
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    
+
     await bot.delete_webhook(drop_pending_updates=True)
 
     # And the run events dispatching
@@ -340,4 +346,3 @@ async def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     asyncio.run(main())
-    
