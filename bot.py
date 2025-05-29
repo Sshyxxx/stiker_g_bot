@@ -1,7 +1,6 @@
 import uuid
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import PointStruct
-#from dotenv import load_dotenv
 #from telebot import types
 import os
 import requests
@@ -20,9 +19,10 @@ import aiohttp
 import aiofiles
 import glob
 import json
+from dotenv import load_dotenv
 
 from requests import session
-
+load_dotenv()
 # Создаем функцию для загрузки файла по ссылке
 #def download_file(url, file_path):
 #    with open(file_path, 'wb') as f:
@@ -30,7 +30,7 @@ from requests import session
 #        f.write(response.content)
 
 # Bot token can be obtained via https://t.me/BotFather
-TOKEN = "7367681660:AAHOrznEV7FDi5xUlNshErpr8C4wYV1cI-Y"
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 QDRANT_URL = "http://localhost:6333"
 client = QdrantClient(url=QDRANT_URL)
@@ -153,7 +153,7 @@ async def download_sticker_set(bot, set_name, user_folder):
 
             # Send the sticker's image data to your FastAPI server synchronously
                 files = {'file': (file_name, content)}
-                response = requests.post('http://localhost:8000/upload-image/', files=files)
+                response = requests.post('http://localhost:80/upload-image/', files=files)
                 print("response", response)
                 response_json = response.json()
                 print("response_json", response_json) 
