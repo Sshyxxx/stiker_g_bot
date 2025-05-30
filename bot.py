@@ -116,7 +116,7 @@ async def download_sticker_set(bot, set_name, user_folder):
         # Create a folder for this set
         set_folder = os.path.join(user_folder, set_name)
         os.makedirs(set_folder, exist_ok=True)
-
+        print(sticker_set.stickers)
         # Download each sticker
         for i, sticker in enumerate(sticker_set.stickers):
             # Determine file extension (WebP for regular stickers, TGS for animated)
