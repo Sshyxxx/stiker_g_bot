@@ -162,9 +162,8 @@ async def download_sticker_set(bot, set_name, user_folder):
                 # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
                 
                 # Extract the recognized text and embedding from the response
-                recognized_text = response_json.get('recognized_text', '')
+                recognized_text = response_json.get('recognized_text',[])
                 embedding = response_json.get('embedding', [])
-
                 # Prepare data for insertion into Qdrant
                 point_id = uuid.uuid4().hex
                 payload = {
@@ -184,8 +183,7 @@ async def download_sticker_set(bot, set_name, user_folder):
                     )
                 except Exception as e:
                     logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
-
-
+                
 
         return len(sticker_set.stickers)
     except Exception as e:
