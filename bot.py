@@ -238,6 +238,30 @@ async def stop_indexing(message: Message) -> None:
             "You are not in indexing mode. Use /index to start indexing."
         )
 
+async def send_to_text_embedding_api(text: str) -> dict:
+    response = requests.post('http://localhost:80/upload-image/',json={"text": text})
+    if response.status_code != 200:
+        raise ValueError(f"Failed to process text embedding request: {response.text}")
+    return response.json()
+
+@dp.message(Command("search"))
+async def handle_search_command(message: Message) -> None:
+    """
+    Обрабатываем команду "/search" и отправляем запрос в API text-embedding
+    """
+    # Извлекаем содержимое после команды /search
+    command_content = message.text.split(maxsplit=1)[1].strip() if len(message.text.split()) > 1 else ""
+
+    if not command_content:
+        await message.answer("Please provide a valid search query after the /search command.")
+        return
+
+    try:
+        # Отправляем запрос в API
+        response_data = await send_to_text_embedding_api(command_content)
+        await message.answer(f"Received embeddings for '{command_content}'. Response: {response_data['result']}")
+    except Exception as e:
+        await message.answer(f"An error occurred during processing: {str(e)}")
 
 @dp.message(Command("random_sticker"))
 async def send_random_sticker(message: Message) -> None:
