@@ -245,7 +245,10 @@ async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) 
             raise ValueError(f"Request failed with status code {resp.status}: {await resp.text()}")
         return await resp.json()
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 005989c1964039a33d497d6cb36d0fb7ec6451a0
 @dp.message(Command("search"))
 async def handle_search_command(message: types.Message) -> None:
     """
@@ -257,11 +260,16 @@ async def handle_search_command(message: types.Message) -> None:
     if not command_content:
         await message.answer("Please provide a valid search query after the /search command.")
         return
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 005989c1964039a33d497d6cb36d0fb7ec6451a0
     try:
         # Используем aiohttp для асинхронного взаимодействия с API
         async with aiohttp.ClientSession() as session:
             response_data = await send_to_text_embedding_api(session, command_content)
+<<<<<<< HEAD
             
             # Получаем эмбеддинг для текущего запроса
             embedding_vector = response_data['embedding'][0]
@@ -299,6 +307,11 @@ async def handle_search_command(message: types.Message) -> None:
     except Exception as e:
         await message.answer(f"An error occurred during processing: {str(e)}")
 
+=======
+            await message.answer(f"Received embeddings for '{command_content}'. Response: {response_data['result']}")
+    except Exception as e:
+        await message.answer(f"An error occurred during processing: {str(e)}")
+>>>>>>> 005989c1964039a33d497d6cb36d0fb7ec6451a0
 
 @dp.message(Command("random_sticker"))
 async def send_random_sticker(message: Message) -> None:
