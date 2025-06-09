@@ -247,8 +247,6 @@ async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) 
 
 <<<<<<< HEAD
 
-=======
->>>>>>> 005989c1964039a33d497d6cb36d0fb7ec6451a0
 @dp.message(Command("search"))
 async def handle_search_command(message: types.Message) -> None:
     """
