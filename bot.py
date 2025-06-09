@@ -35,6 +35,7 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 QDRANT_URL = "http://localhost:6333"
 client = QdrantClient(url=QDRANT_URL)
 COLLECTION_NAME = "stickers_collection"
+TOP_K = 3
 
 if not client.collection_exists(COLLECTION_NAME):
     # Create a new collection with the specified name
@@ -116,7 +117,7 @@ async def download_sticker_set(bot, set_name, user_folder):
         # Create a folder for this set
         set_folder = os.path.join(user_folder, set_name)
         os.makedirs(set_folder, exist_ok=True)
-
+        print(sticker_set.stickers)
         # Download each sticker
         for i, sticker in enumerate(sticker_set.stickers):
             # Determine file extension (WebP for regular stickers, TGS for animated)
@@ -162,9 +163,8 @@ async def download_sticker_set(bot, set_name, user_folder):
                 # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
                 
                 # Extract the recognized text and embedding from the response
-                recognized_text = response_json.get('recognized_text', '')
+                recognized_text = response_json.get('recognized_text',[])
                 embedding = response_json.get('embedding', [])
-
                 # Prepare data for insertion into Qdrant
                 point_id = uuid.uuid4().hex
                 payload = {
@@ -184,8 +184,7 @@ async def download_sticker_set(bot, set_name, user_folder):
                     )
                 except Exception as e:
                     logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
-
-
+                
 
         return len(sticker_set.stickers)
     except Exception as e:
@@ -239,6 +238,66 @@ async def stop_indexing(message: Message) -> None:
         await message.answer(
             "You are not in indexing mode. Use /index to start indexing."
         )
+
+async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) -> dict:
+    async with session.post('http://localhost:80/search/', json={"text": text}) as resp:
+        if resp.status >= 400:
+            raise ValueError(f"Request failed with status code {resp.status}: {await resp.text()}")
+        return await resp.json()
+
+
+@dp.message(Command("search"))
+async def handle_search_command(message: types.Message) -> None:
+    """
+    Обрабатываем команду "/search" и отправляем запрос в API text-embedding
+    """
+    # Извлекаем содержимое после команды /search
+    command_content = message.text.split(maxsplit=1)[1].strip() if len(message.text.split()) > 1 else ""
+
+    if not command_content:
+        await message.answer("Please provide a valid search query after the /search command.")
+        return
+    
+    try:
+        # Используем aiohttp для асинхронного взаимодействия с API
+        async with aiohttp.ClientSession() as session:
+            response_data = await send_to_text_embedding_api(session, command_content)
+            
+            # Получаем эмбеддинг для текущего запроса
+            embedding_vector = response_data['embedding'][0]
+            
+            # Выполняем поиск в Quandrant
+            results = client.search(
+                collection_name=COLLECTION_NAME,
+                query_vector=embedding_vector,
+                limit=TOP_K
+            )
+            
+            # Проверяем наличие результатов
+            if not results:
+                await message.answer("No matching stickers found.")
+                return
+            
+            # Собираем file_ids из результатов поиска
+            file_ids = []
+            for hit in results:
+                file_id = hit.payload.get("file_id")
+                if file_id:
+                    file_ids.append(file_id)
+                    
+            # Если нет file_ids, значит ничего подходящего не найдено
+            if not file_ids:
+                await message.answer("No stickers found in results.")
+                return
+            
+            # Случайно выбираем один file_id из списка
+            selected_file_id = random.choice(file_ids)
+            
+            # Отправляем стикер пользователю
+            await message.answer_sticker(sticker=selected_file_id)
+
+    except Exception as e:
+        await message.answer(f"An error occurred during processing: {str(e)}")
 
 
 @dp.message(Command("random_sticker"))
