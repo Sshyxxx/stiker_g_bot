@@ -1,7 +1,8 @@
 import uuid
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import PointStruct
-#from telebot import types
+
+# from telebot import types
 import os
 import requests
 import asyncio
@@ -22,9 +23,10 @@ import json
 from dotenv import load_dotenv
 
 from requests import session
+
 load_dotenv()
 # Создаем функцию для загрузки файла по ссылке
-#def download_file(url, file_path):
+# def download_file(url, file_path):
 #    with open(file_path, 'wb') as f:
 #        response = requests.get(url)
 #        f.write(response.content)
@@ -41,7 +43,7 @@ if not client.collection_exists(COLLECTION_NAME):
     # Create a new collection with the specified name
     client.create_collection(
         collection_name=COLLECTION_NAME,
-        vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
+        vectors_config=models.VectorParams(size=1024, distance=models.Distance.COSINE),
     )
 
 # All handlers should be attached to the Router (or Dispatcher)
@@ -50,10 +52,12 @@ dp = Dispatcher()
 # Dictionary to track users who are in indexing mode
 indexing_users = {}
 
+
 @dp.message(Command("disable_webhook"))
 async def disable_webhook(message: Message) -> None:
     await bot.delete_webhook()
     await message.reply("Webhook успешно отключен! Теперь используем long polling.")
+
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
@@ -62,6 +66,7 @@ async def command_start_handler(message: Message) -> None:
         f"Write me /index to start indexing stickers.\n"
         f"Use /random_sticker to get a random sticker from your collection.\n\n"
     )
+
 
 @dp.message(Command("index"))
 async def start_indexing(message: Message) -> None:
@@ -129,7 +134,7 @@ async def download_sticker_set(bot, set_name, user_folder):
 
             # Save metadata file alongside sticker
             metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
-            
+
             await download_sticker(bot, sticker, save_path, metadata_path)
             # Load the downloaded sticker into memory
             for i, sticker in enumerate(sticker_set.stickers):
@@ -139,38 +144,40 @@ async def download_sticker_set(bot, set_name, user_folder):
                 # Use index for filename to avoid file system issues with long file_ids
                 file_name = f"sticker_{i+1}.{extension}"
                 save_path = os.path.join(set_folder, file_name)
-                #print("sticker:", sticker)
+                # print("sticker:", sticker)
                 print("folder:", set_folder)
 
                 # Save metadata file alongside sticker
                 metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
-                
+
                 # Download sticker and store it locally
                 await download_sticker(bot, sticker, save_path, metadata_path)
 
                 # Load the downloaded sticker into memory
-                with open(save_path, 'rb') as f:
+                with open(save_path, "rb") as f:
                     content = f.read()
 
-            # Send the sticker's image data to your FastAPI server synchronously
-                files = {'file': (file_name, content)}
-                response = requests.post('http://localhost:80/upload-image/', files=files)
+                # Send the sticker's image data to your FastAPI server synchronously
+                files = {"file": (file_name, content)}
+                response = requests.post(
+                    "http://localhost:80/upload-image/", files=files
+                )
                 print("response", response)
                 response_json = response.json()
-                print("response_json", response_json) 
-                
+                print("response_json", response_json)
+
                 # ПРАВИЛЬНЫЙ ФОРМАТ:
                 # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
-                
+
                 # Extract the recognized text and embedding from the response
-                recognized_text = response_json.get('recognized_text',[])
-                embedding = response_json.get('embedding', [])
+                recognized_text = response_json.get("recognized_text", [])
+                embedding = response_json.get("embedding", [])
                 # Prepare data for insertion into Qdrant
                 point_id = uuid.uuid4().hex
                 payload = {
-                    'text': recognized_text,
-                    'sticker_id': sticker.file_id,
-                    'file_id': sticker.file_unique_id
+                    "text": recognized_text,
+                    "sticker_id": sticker.file_id,
+                    "file_id": sticker.file_unique_id,
                 }
 
                 # Insert data into Qdrant
@@ -178,13 +185,16 @@ async def download_sticker_set(bot, set_name, user_folder):
                     client.upsert(
                         collection_name=COLLECTION_NAME,
                         points=[
-                            PointStruct(id=point_id, vector=embedding, payload=payload)
+                            PointStruct(
+                                id=point_id, vector=embedding[0], payload=payload
+                            )
                         ],
-                        wait=True
+                        wait=True,
                     )
                 except Exception as e:
-                    logging.error(f"Error inserting sticker '{point_id}' into Qdrant: {e}")
-                
+                    logging.error(
+                        f"Error inserting sticker '{point_id}' into Qdrant: {e}"
+                    )
 
         return len(sticker_set.stickers)
     except Exception as e:
@@ -239,10 +249,15 @@ async def stop_indexing(message: Message) -> None:
             "You are not in indexing mode. Use /index to start indexing."
         )
 
+
 async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) -> dict:
-    async with session.post('http://localhost:80/text-embedding/', data={"text": text}) as resp:
+    async with session.post(
+        "http://localhost:80/text-embedding/", params={"text": text}
+    ) as resp:
         if resp.status >= 400:
-            raise ValueError(f"Request failed with status code {resp.status}: {await resp.text()}")
+            raise ValueError(
+                f"Request failed with status code {resp.status}: {await resp.text()}"
+            )
         return await resp.json()
 
 
@@ -252,56 +267,61 @@ async def handle_search_command(message: types.Message) -> None:
     Обрабатываем команду "/search" и отправляем запрос в API text-embedding
     """
     # Извлекаем содержимое после команды /search
-    command_content = message.text.split(maxsplit=1)[1].strip() if len(message.text.split()) > 1 else ""
+    command_content = (
+        message.text.split(maxsplit=1)[1].strip()
+        if len(message.text.split()) > 1
+        else ""
+    )
 
     if not command_content:
-        await message.answer("Please provide a valid search query after the /search command.")
+        await message.answer(
+            "Please provide a valid search query after the /search command."
+        )
         return
 
     try:
         # Используем aiohttp для асинхронного взаимодействия с API
         async with aiohttp.ClientSession() as session:
             response_data = await send_to_text_embedding_api(session, command_content)
-            print(response_data)
 
-            
             # Получаем эмбеддинг для текущего запроса
-            embedding_vector = response_data['embedding'][0]
-            
+            embedding_vector = response_data["embedding"][0]
+
             # Выполняем поиск в Quandrant
             results = client.search(
                 collection_name=COLLECTION_NAME,
                 query_vector=embedding_vector,
-                limit=TOP_K
+                limit=TOP_K,
             )
-            
+
             # Проверяем наличие результатов
             if not results:
                 await message.answer("No matching stickers found.")
                 return
-            
+
             # Собираем file_ids из результатов поиска
             file_ids = []
             for hit in results:
-                file_id = hit.payload.get("file_id")
+                file_id = hit.payload.get("sticker_id")
                 if file_id:
                     file_ids.append(file_id)
-                    
+
             # Если нет file_ids, значит ничего подходящего не найдено
             if not file_ids:
                 await message.answer("No stickers found in results.")
                 return
-            
+
             # Случайно выбираем один file_id из списка
-            selected_file_id = random.choice(file_ids)
-            
-            # Отправляем стикер пользователю
-            await message.answer_sticker(sticker=selected_file_id)
+            for idx in file_ids:
+                # Отправляем стикер пользователю
+                await message.answer_sticker(sticker=idx)
 
     except Exception as e:
         await message.answer(f"An error occurred during processing: {str(e)}")
 
-        await message.answer(f"Received embeddings for '{command_content}'. Response: {response_data['result']}")
+        await message.answer(
+            f"Received embeddings for '{command_content}'. Response: {response_data['result']}"
+        )
     except Exception as e:
         await message.answer(f"An error occurred during processing: {str(e)}")
 
@@ -395,7 +415,7 @@ async def handle_sticker(message: Message) -> None:
 async def main() -> None:
     # Initialize Bot instance with default bot properties which will be passed to all API calls
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    
+
     await bot.delete_webhook(drop_pending_updates=True)
 
     # And the run events dispatching
@@ -405,4 +425,3 @@ async def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     asyncio.run(main())
-    
