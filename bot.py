@@ -160,7 +160,7 @@ async def download_sticker_set(bot, set_name, user_folder):
                 # Send the sticker's image data to your FastAPI server synchronously
                 files = {"file": (file_name, content)}
                 response = requests.post(
-                    "http://localhost:8000/upload-image/", files=files
+                    "http://localhost:80/upload-image/", files=files
                 )
                 print("response", response)
                 response_json = response.json()
@@ -252,7 +252,7 @@ async def stop_indexing(message: Message) -> None:
 
 async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) -> dict:
     async with session.post(
-        "http://localhost:8000/text-embedding/", params={"text": text}
+        "http://localhost:80/text-embedding/", params={"text": text}
     ) as resp:
         if resp.status >= 400:
             raise ValueError(
