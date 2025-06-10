@@ -240,7 +240,7 @@ async def stop_indexing(message: Message) -> None:
         )
 
 async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) -> dict:
-    async with session.post('http://localhost:80/search/', json={"text": text}) as resp:
+    async with session.post('http://localhost:80/text-embedding/', data={"text": text}) as resp:
         if resp.status >= 400:
             raise ValueError(f"Request failed with status code {resp.status}: {await resp.text()}")
         return await resp.json()
@@ -262,6 +262,7 @@ async def handle_search_command(message: types.Message) -> None:
         # Используем aiohttp для асинхронного взаимодействия с API
         async with aiohttp.ClientSession() as session:
             response_data = await send_to_text_embedding_api(session, command_content)
+            print(response_data)
 
             
             # Получаем эмбеддинг для текущего запроса
@@ -300,7 +301,7 @@ async def handle_search_command(message: types.Message) -> None:
     except Exception as e:
         await message.answer(f"An error occurred during processing: {str(e)}")
 
-            await message.answer(f"Received embeddings for '{command_content}'. Response: {response_data['result']}")
+        await message.answer(f"Received embeddings for '{command_content}'. Response: {response_data['result']}")
     except Exception as e:
         await message.answer(f"An error occurred during processing: {str(e)}")
 
