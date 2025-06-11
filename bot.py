@@ -114,89 +114,65 @@ async def download_sticker(bot, sticker, save_path, metadata_path):
 
 
 async def download_sticker_set(bot, set_name, user_folder):
-    """Download all stickers from a sticker set to a folder"""
     try:
-        # Get the sticker set
         sticker_set = await bot.get_sticker_set(set_name)
-
-        # Create a folder for this set
         set_folder = os.path.join(user_folder, set_name)
         os.makedirs(set_folder, exist_ok=True)
-        print(sticker_set.stickers)
-        # Download each sticker
-        for i, sticker in enumerate(sticker_set.stickers):
-            # Determine file extension (WebP for regular stickers, TGS for animated)
-            extension = "tgs" if sticker.is_animated else "webp"
 
-            # Use index for filename to avoid file system issues with long file_ids
+        for i, sticker in enumerate(sticker_set.stickers):
+            extension = "tgs" if sticker.is_animated else "webp"
             file_name = f"sticker_{i+1}.{extension}"
             save_path = os.path.join(set_folder, file_name)
-
-            # Save metadata file alongside sticker
             metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
 
+            # Optionally skip animated stickers
+            if sticker.is_animated:
+                logging.info(f"Skipping animated sticker: {file_name}")
+                continue
+
             await download_sticker(bot, sticker, save_path, metadata_path)
-            # Load the downloaded sticker into memory
-            for i, sticker in enumerate(sticker_set.stickers):
-                # Determine file extension (WebP for regular stickers, TGS for animated)
-                extension = "tgs" if sticker.is_animated else "webp"
 
-                # Use index for filename to avoid file system issues with long file_ids
-                file_name = f"sticker_{i+1}.{extension}"
-                save_path = os.path.join(set_folder, file_name)
-                # print("sticker:", sticker)
-                print("folder:", set_folder)
+            with open(save_path, "rb") as f:
+                content = f.read()
 
-                # Save metadata file alongside sticker
-                metadata_path = os.path.join(set_folder, f"sticker_{i+1}.json")
+            files = {"file": (file_name, content)}
+            response = requests.post("http://localhost:8000/upload-image/", files=files)
 
-                # Download sticker and store it locally
-                await download_sticker(bot, sticker, save_path, metadata_path)
+            if response.status_code != 200:
+                logging.error(f"[UPLOAD FAIL] {response.status_code} {response.text}")
+                continue
 
-                # Load the downloaded sticker into memory
-                with open(save_path, "rb") as f:
-                    content = f.read()
-
-                # Send the sticker's image data to your FastAPI server synchronously
-                files = {"file": (file_name, content)}
-                response = requests.post(
-                    "http://localhost:80/upload-image/", files=files
-                )
-                print("response", response)
+            try:
                 response_json = response.json()
-                print("response_json", response_json)
+            except Exception as e:
+                logging.error(f"JSON parse error: {e}, response: {response.text}")
+                continue
 
-                # ПРАВИЛЬНЫЙ ФОРМАТ:
-                # {'recognized_text': 'text', 'embedding': [0.1, 0.2, ...]}
+            recognized_text = response_json.get("recognized_text", "")
+            embedding = response_json.get("embedding", [])
 
-                # Extract the recognized text and embedding from the response
-                recognized_text = response_json.get("recognized_text", [])
-                embedding = response_json.get("embedding", [])
-                # Prepare data for insertion into Qdrant
-                point_id = uuid.uuid4().hex
-                payload = {
-                    "text": recognized_text,
-                    "sticker_id": sticker.file_id,
-                    "file_id": sticker.file_unique_id,
-                }
+            if not embedding:
+                logging.warning(f"No embedding returned for {file_name}")
+                continue
 
-                # Insert data into Qdrant
-                try:
-                    client.upsert(
-                        collection_name=COLLECTION_NAME,
-                        points=[
-                            PointStruct(
-                                id=point_id, vector=embedding[0], payload=payload
-                            )
-                        ],
-                        wait=True,
-                    )
-                except Exception as e:
-                    logging.error(
-                        f"Error inserting sticker '{point_id}' into Qdrant: {e}"
-                    )
+            point_id = uuid.uuid4().hex
+            payload = {
+                "text": recognized_text,
+                "sticker_id": sticker.file_id,
+                "file_id": sticker.file_unique_id,
+            }
+
+            try:
+                client.upsert(
+                    collection_name=COLLECTION_NAME,
+                    points=[PointStruct(id=point_id, vector=embedding[0], payload=payload)],
+                    wait=True,
+                )
+            except Exception as e:
+                logging.error(f"Qdrant insert error for {file_name}: {e}")
 
         return len(sticker_set.stickers)
+
     except Exception as e:
         logging.error(f"Error downloading sticker set {set_name}: {e}")
         return 0
@@ -252,7 +228,7 @@ async def stop_indexing(message: Message) -> None:
 
 async def send_to_text_embedding_api(session: aiohttp.ClientSession, text: str) -> dict:
     async with session.post(
-        "http://localhost:80/text-embedding/", params={"text": text}
+        "http://localhost:8000/text-embedding/", params={"text": text}
     ) as resp:
         if resp.status >= 400:
             raise ValueError(
